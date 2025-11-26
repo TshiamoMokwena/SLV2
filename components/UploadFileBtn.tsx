@@ -1,58 +1,62 @@
-import { useFileContext } from '@/context/FileProvider';
-import { useOnboarding } from '@/context/OnboardingProvider';
-import { analyzeImage } from '@/utils/ocr';
-import { AntDesign } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import { RelativePathString, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import { useFileContext } from '@/context/FileProvider'
+import { useOnboarding } from '@/context/OnboardingProvider'
+import { analyzeImage } from '@/utils'
+import AntDesign from '@expo/vector-icons/AntDesign'
+import * as DocumentPicker from 'expo-document-picker'
+import { RelativePathString, useRouter } from 'expo-router'
+import React from 'react'
+import { Alert, Text, TouchableOpacity } from 'react-native'
 
 const UploadFileBtn = () => {
-    const { setFileUri, setocrFileContents } = useFileContext();
-    const { activeSubject } = useOnboarding();
-    const router = useRouter();
-    const [isLoading, setIsLoading] = useState(false);
+    const {
+        setocrFileContents,
+        setFileUri,
+        setFileName
+    } = useFileContext()
+    const { activeSubject } = useOnboarding()
+    const router = useRouter()
 
-    const pickImage = async () => {
+    const openFilePicker = async () => {
         try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                quality: 1,
-            });
+            const doc = await DocumentPicker.getDocumentAsync({
+                type: '*/*',
+                copyToCacheDirectory: true,
+            })
 
-            if (!result.canceled) {
-                setIsLoading(true);
-                const uri = result.assets[0].uri;
-                setFileUri(uri);
+            if (doc.canceled) return;
 
-                // Analyze image
-                const ocrResult = await analyzeImage(uri);
+            console.log(doc)
+            setFileUri(doc.assets![0].uri)
+            setFileName(doc.assets![0].name)
 
-                if (ocrResult && ocrResult.responses && ocrResult.responses[0].fullTextAnnotation) {
-                    setocrFileContents(ocrResult.responses[0].fullTextAnnotation.text);
-                    router.push(`/(dashboard)/subject/${activeSubject?.subjectId}/(homework)/OCRConfirm` as RelativePathString);
-                } else {
-                    Alert.alert("No Text Found", "Could not detect any text in the image.");
-                }
+            const ocrContent = await analyzeImage(doc.assets![0].uri)
+
+            if (ocrContent.error) {
+                const errorMessage = typeof ocrContent.error === 'string'
+                    ? ocrContent.error
+                    : ocrContent.error.message || "Unknown OCR Error";
+                Alert.alert("OCR Error", errorMessage)
+                return
             }
+
+            setocrFileContents(ocrContent.responses[0].textAnnotations[0].description)
+            router.push(`/(dashboard)/subject/${activeSubject?.subjectId}/OCRConfirm` as RelativePathString)
+
         } catch (error: any) {
-            console.error("Error picking image:", error);
-            Alert.alert("Error", error.message || "Failed to pick image");
-        } finally {
-            setIsLoading(false);
+            console.error("OpenPDF Error: ", error)
+            Alert.alert("Error", error.message)
         }
-    };
+    }
 
     return (
-        <TouchableOpacity onPress={pickImage} disabled={isLoading}>
-            {isLoading ? (
-                <ActivityIndicator size="small" color="#5470FD" />
-            ) : (
-                <AntDesign name="file-add" size={24} color="gray" />
-            )}
+        <TouchableOpacity
+            onPressIn={openFilePicker}
+            className='flex flex-row items-center pl-2'
+        >
+            <AntDesign name="file-add" size={20} color="gray" />
+            <Text className='text-xs ml-1 text-gray-600'>Upload File</Text>
         </TouchableOpacity>
-    );
-};
+    )
+}
 
-export default UploadFileBtn;
+export default UploadFileBtn

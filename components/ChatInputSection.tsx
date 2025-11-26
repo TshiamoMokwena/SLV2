@@ -1,12 +1,21 @@
-import { useFileContext } from '@/context/FileProvider';
-import { useMessageContext } from '@/context/MessageProvider';
-import { useOnboarding } from '@/context/OnboardingProvider';
-import { generateChatResponse } from '@/utils/gemini';
-import { Ionicons } from '@expo/vector-icons';
+import AntDesign from '@expo/vector-icons/AntDesign';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, TextInput, TouchableOpacity, View } from 'react-native';
+
+import { useFileContext } from '@/context/FileProvider';
+import { Message, useMessageContext } from '@/context/MessageProvider';
+import { useOnboarding } from '@/context/OnboardingProvider';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import OpenCameraBtn from './OpenCameraBtn';
 import UploadFileBtn from './UploadFileBtn';
+
+const genAI = new GoogleGenerativeAI(process.env.EXPO_PUBLIC_GEMINI_API_KEY!);
+
+const primaryGradeLevels = [
+    { label: 'Grade 1 - 3', value: '1' },
+    { label: 'Grade 4 - 6', value: '2' },
+    { label: 'Grade 7', value: '3' },
+];
 
 const ChatInputSection = ({
     setIsChatActive,
@@ -15,106 +24,120 @@ const ChatInputSection = ({
     isChatActive: boolean;
     setIsChatActive: React.Dispatch<React.SetStateAction<boolean>>
 }) => {
-    const { ocrFileContents, setocrFileContents } = useFileContext();
-    const { setMessages, messages, addMessage } = useMessageContext();
-    const { gradeRange, activeSubject } = useOnboarding();
+    const { ocrFileContents } = useFileContext()
+    const { setMessages, messages } = useMessageContext()
+    const { gradeRange, activeSubject } = useOnboarding()
 
     const [height, setHeight] = useState(35);
-    const [inputTextValue, setInputTextValue] = useState(ocrFileContents || "");
-    const [isLoading, setIsLoading] = useState(false);
-
-    // Update input text if OCR content changes
-    React.useEffect(() => {
-        if (ocrFileContents) {
-            setInputTextValue(ocrFileContents);
-            // Clear OCR content after loading it into input to avoid re-triggering
-            setocrFileContents(null);
-        }
-    }, [ocrFileContents]);
+    const [margin, setMargin] = useState(0);
+    const [isKeyboardActive, setIsKeyboardActive] = useState(false)
+    const [inputTextValue, setInputTextValue] = useState(ocrFileContents || "")
 
     const sendMessage = async () => {
-        if (!inputTextValue.trim()) return;
+        const userMessage: Message = { id: Date.now().toString(), type: 'text', content: inputTextValue, sender: 'user' };
+        setMessages((prev) => [...prev, userMessage]);
 
-        const userMessage = { id: Date.now().toString(), type: 'text' as const, content: inputTextValue, sender: 'user' as const };
-        addMessage(userMessage);
-        setInputTextValue('');
-        setIsChatActive(true);
-        setIsLoading(true);
+        setInputTextValue('')
 
+        // Gemini response
         try {
-            // Prepare history for Gemini
-            const history = messages.map(msg => ({
-                role: msg.sender,
-                content: msg.content
-            }));
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-            const responseText = await generateChatResponse(inputTextValue, history);
+            const gradeLabel = primaryGradeLevels.find((grade) => grade.value === gradeRange)?.label || "Grade 1 - 3";
+            const prompt = `
+                You are an AI tutor designed to assist South African students in ${gradeLabel} with their homework.
+                Your goal is to provide clear and concise explanations, examples, and guidance in relation to ${activeSubject} as a subject the current student is enrolled in.
+                Please ensure that your responses are tailored to the South African curriculum and educational standards.
 
-            const aiMessage = {
+    History:
+                ${messages.map((msg) => `${msg.sender}: ${msg.content}`).join('\n')}
+
+User: ${inputTextValue}
+`;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            const text = response.text();
+
+            const aiMessage: Message = {
                 id: Date.now().toString(),
-                type: 'text' as const,
-                content: responseText,
-                sender: 'system' as const,
+                type: 'text',
+                content: text || 'Sorry, I did not understand that...',
+                sender: 'system',
             };
-            addMessage(aiMessage);
+            setMessages((prev) => [...prev, aiMessage])
 
         } catch (error: any) {
-            console.error('Failed to send message:', error);
-            const errorMessage = {
+            console.error('Failed to send message to Gemini', error);
+            const aiMessage: Message = {
                 id: Date.now().toString(),
-                type: 'text' as const,
-                content: "Sorry, I'm having trouble connecting. Please try again later.",
-                sender: 'system' as const
-            };
-            addMessage(errorMessage);
-            Alert.alert('Error', 'Failed to get response from AI.');
-        } finally {
-            setIsLoading(false);
+                type: 'text',
+                content: "Sorry, I'm having trouble connecting to Gemini. Please try again later.",
+                sender: 'system'
+            }
+            setMessages((prev) => [...prev, aiMessage])
+            Alert.alert('Failed to send message to Gemini', error.message);
+
         }
-    };
+    }
+
+    const displayChat = () => {
+        if (inputTextValue.trim().length === 0) return;
+        inputTextValue && sendMessage()
+        setIsChatActive(true)
+    }
 
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
-            className='flex w-full'
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0} // Adjust based on header height
+            className='flex'
         >
-            <View className='w-full bg-[#afbcff] p-4 rounded-t-3xl'>
-                <View className='bg-white/20 rounded-xl p-2 mb-3'>
-                    <TextInput
-                        value={inputTextValue}
-                        onChangeText={setInputTextValue}
-                        multiline
-                        className='text-white text-base max-h-32 min-h-[40px]'
-                        placeholder='Ask your AI tutor...'
-                        placeholderTextColor="rgba(255, 255, 255, 0.7)"
-                        onContentSizeChange={(event) => {
-                            setHeight(Math.max(35, event.nativeEvent.contentSize.height));
-                        }}
-                    />
-                </View>
-
-                <View className='flex-row justify-between items-center'>
-                    <View className='flex-row gap-4'>
-                        <UploadFileBtn />
-                        <OpenCameraBtn />
+            <View className='flex w-full p-3 m-0 items-center justify-between min-h-[120px]'>
+                <View className='bg-[#afbcff] flex w-full flex-1 p-1 rounded-lg overflow-hidden'>
+                    <View className='bg-[#afbcff] flex-[0.6]'>
+                        <TextInput
+                            value={inputTextValue!}
+                            onChangeText={(text) => setInputTextValue(text)}
+                            multiline
+                            className='w-full flex-1 p-2 bg-[#bbc6ff]'
+                            onContentSizeChange={(event) => {
+                                const newHeight = Math.max(35, event.nativeEvent.contentSize.height);
+                                setHeight(newHeight);
+                                setMargin(Math.max(0, 120 - margin));
+                            }}
+                            style={{ height: height, backgroundColor: '#bbc6ff' }}
+                            placeholder='Type a message...'
+                        />
                     </View>
-
-                    <TouchableOpacity
-                        className={`p-2 rounded-full ${!inputTextValue.trim() && !isLoading ? 'bg-white/30' : 'bg-white'}`}
-                        onPress={sendMessage}
-                        disabled={!inputTextValue.trim() || isLoading}
-                    >
-                        {isLoading ? (
-                            <ActivityIndicator size="small" color="#5470FD" />
+                    <View className='bg-[#afbcff] flex-[0.4] flex-row items-center justify-between'>
+                        {isKeyboardActive ? (
+                            <TouchableOpacity
+                                onPress={() => setIsKeyboardActive(false)}
+                                className='pl-2'
+                            >
+                                <AntDesign name="plus" size={20} color="grey" />
+                            </TouchableOpacity>
                         ) : (
-                            <Ionicons name="arrow-up" size={24} color={!inputTextValue.trim() ? "rgba(255,255,255,0.5)" : "#5470FD"} />
+                            <View className='flex flex-row items-center'>
+                                <UploadFileBtn />
+
+                                <OpenCameraBtn />
+                            </View>
                         )}
-                    </TouchableOpacity>
+
+                        <TouchableOpacity
+                            className='pr-1'
+                            onPress={() => displayChat()}
+                        >
+                            <AntDesign name="arrow-right" size={20} color="gray" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
-        </KeyboardAvoidingView>
-    );
-};
 
-export default ChatInputSection;
+        </KeyboardAvoidingView>
+    )
+}
+
+export default ChatInputSection

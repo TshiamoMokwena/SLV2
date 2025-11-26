@@ -1,28 +1,61 @@
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { StyleProp, TouchableOpacity, ViewStyle } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import React, { ComponentProps } from 'react';
+import { StyleProp, StyleSheet, Text, TouchableOpacity, ViewStyle } from 'react-native';
 
 interface CameraButtonProps {
     onPress: () => void;
-    iconName: keyof typeof Ionicons.glyphMap;
+    title?: string;
+    iconName?: ComponentProps<typeof Ionicons>["name"];
     containerStyle?: StyleProp<ViewStyle>;
+    iconSize?: number;
 }
 
-const CameraButton = ({ onPress, iconName, containerStyle }: CameraButtonProps) => {
+const CameraButton = ({
+    onPress,
+    iconName,
+    title,
+    containerStyle,
+    iconSize,
+}: CameraButtonProps) => {
     return (
         <TouchableOpacity
             onPress={onPress}
-            style={[{
-                backgroundColor: 'rgba(0,0,0,0.4)',
-                padding: 12,
-                borderRadius: 50,
-                alignItems: 'center',
-                justifyContent: 'center',
-            }, containerStyle]}
+            style={[
+                styles.container,
+                {
+                    backgroundColor: '#151718',
+                    borderRadius: title ? 6 : 40,
+                    alignSelf: "flex-start",
+                },
+                containerStyle,
+            ]}
         >
-            <Ionicons name={iconName} size={24} color="white" />
+            {iconName && (
+                <Ionicons name={iconName} size={iconSize ?? 28} color={"white"} />
+            )}
+            {title ? (
+                <Text
+                    style={{
+                        fontSize: 14,
+                        fontWeight: "600",
+                        color: "white",
+                    }}
+                >
+                    {title}
+                </Text>
+            ) : null}
         </TouchableOpacity>
-    );
-};
+    )
+}
 
-export default CameraButton;
+export default CameraButton
+
+const styles = StyleSheet.create({
+    container: {
+        padding: 7,
+        borderRadius: 40,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 7,
+    },
+});

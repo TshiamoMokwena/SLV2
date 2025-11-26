@@ -1,17 +1,11 @@
-import { Message } from '@/context/MessageProvider';
-import { format } from "date-fns";
-import React, { useRef } from 'react';
-import { FlatList, Text, View } from 'react-native';
-import Markdown from 'react-native-markdown-display';
+import { Message } from '@/context/MessageProvider'
+import { format } from "date-fns"
+import React from 'react'
+import { FlatList, Text, View } from 'react-native'
+import Markdown from 'react-native-markdown-display'
+
 
 const RenderChatScreen = ({ messages }: { messages: Message[] }) => {
-    const flatListRef = useRef<FlatList>(null);
-
-    React.useEffect(() => {
-        if (messages.length > 0) {
-            flatListRef.current?.scrollToEnd({ animated: true });
-        }
-    }, [messages]);
 
     const renderMessage = ({ item }: { item: Message }) => {
         return (
@@ -57,7 +51,6 @@ const RenderChatScreen = ({ messages }: { messages: Message[] }) => {
     return (
         <View className='bg-[#e0e1e6] p-5 flex-1 w-full'>
             <FlatList
-                ref={flatListRef}
                 className={'flex-1 p-0 mt-2 w-full'}
                 data={messages}
                 renderItem={renderMessage}
@@ -68,4 +61,4 @@ const RenderChatScreen = ({ messages }: { messages: Message[] }) => {
     )
 }
 
-export default RenderChatScreen;
+export default RenderChatScreen

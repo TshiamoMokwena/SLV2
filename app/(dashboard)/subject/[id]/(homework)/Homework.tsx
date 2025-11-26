@@ -1,41 +1,36 @@
-import ChatInputSection from '@/components/ChatInputSection';
-import Navbar from '@/components/Navbar';
-import RenderChatScreen from '@/components/RenderChatScreen';
-import { useMessageContext } from '@/context/MessageProvider';
-import { useOnboarding } from '@/context/OnboardingProvider';
-import React, { useState } from 'react';
-import { Image, View } from 'react-native';
+import React, { useState } from 'react'
+import { Image, View } from 'react-native'
+
+import ChatInputSection from '@/components/ChatInputSection'
+import Navbar from '@/components/Navbar'
+import RenderChatScreen from '@/components/RenderChatScreen'
+import { useMessageContext } from '@/context/MessageProvider'
 
 const Homework = () => {
-    const { messages } = useMessageContext();
-    const { activeSubject } = useOnboarding();
-    const [isChatActive, setIsChatActive] = useState(false);
+    const { messages } = useMessageContext()
+    const [isChatActive, setIsChatActive] = useState(false)
+
 
     return (
-        <View className='flex h-full w-full justify-between bg-background-light'>
+        <View className='flex h-full w-full justify-between bg-slate-300'>
             <View className='flex w-full'>
                 <Navbar
                     heading="Homework"
-                    subHeading={activeSubject?.subjectName || 'AI Tutor'}
-                    showBackButton={true}
+                    subHeading="Start a conversation with your AI teacher"
                 />
             </View>
 
-            <View className='flex-1 items-center justify-center w-full'>
+            <View className='flex-1 items-center justify-center'>
                 {(isChatActive || messages.length > 0) ? (
-                    <View className="flex-1 w-full">
-                        <RenderChatScreen
-                            messages={messages}
-                        />
-                    </View>
+                    <RenderChatScreen
+                        messages={messages}
+                    />
                 ) : (
-                    <View className="items-center justify-center opacity-50">
-                        <Image
-                            source={require('@/assets/images/splash_icon.png')}
-                            className='w-64 h-64'
-                            resizeMode="contain"
-                        />
-                    </View>
+                    <Image
+                        source={require('@/assets/images/splash_image.png')}
+                        className='w-3/4 h-3/4'
+                        resizeMode="contain"
+                    />
                 )}
             </View>
 
@@ -44,7 +39,7 @@ const Homework = () => {
                 setIsChatActive={setIsChatActive}
             />
         </View>
-    );
-};
+    )
+}
 
-export default Homework;
+export default Homework

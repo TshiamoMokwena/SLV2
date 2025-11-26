@@ -1,76 +1,71 @@
-import CameraButton from '@/components/CameraButton';
-import { useFileContext } from '@/context/FileProvider';
-import { useOnboarding } from '@/context/OnboardingProvider';
-import { analyzeImage } from '@/utils/ocr';
-import { FontAwesome5 } from '@expo/vector-icons';
-import { RelativePathString, useRouter } from 'expo-router';
-import React, { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Platform, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Camera, useCameraDevice, useCameraFormat } from 'react-native-vision-camera';
+import CameraButton from '@/components/CameraButton'
+import { useFileContext } from '@/context/FileProvider'
+import { useOnboarding } from '@/context/OnboardingProvider'
+import { analyzeImage } from '@/utils'
+import { FontAwesome5 } from '@expo/vector-icons'
+import { RelativePathString, useRouter } from 'expo-router'
+import React, { useRef, useState } from 'react'
+import { Alert, Linking, Platform, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native'
+import { Camera, useCameraDevice, useCameraFormat } from 'react-native-vision-camera'
 
 const CameraScreen = () => {
     const {
         setocrFileContents,
         setFileUri,
-    } = useFileContext();
-    const { activeSubject } = useOnboarding();
-    const [cameraPosition, setCameraPosition] = useState<"front" | "back">("back");
-    const [flash, setFlash] = useState<"off" | "on">("off");
-    const [torch, setTorch] = useState<"off" | "on">("off");
-    const [exposure, setExposure] = useState(0);
-    const [isProcessing, setIsProcessing] = useState(false);
+        setFileName
+    } = useFileContext()
+    const { activeSubject } = useOnboarding()
+    const [cameraPosition, setCameraPosition] = useState<"front" | "back">("back")
+    const [flash, setFlash] = useState<"off" | "on">("off")
+    const [torch, setTorch] = useState<"off" | "on">("off")
+    const [exposure, setExposure] = React.useState(0);
 
-    const router = useRouter();
+    const router = useRouter()
 
     const camera = useRef<Camera>(null);
-    const device = useCameraDevice(cameraPosition);
+    const device = useCameraDevice(cameraPosition)
     const format = useCameraFormat(device, [
         { photoHdr: true },
-    ]);
+    ])
 
-    const [zoom, setZoom] = useState(device?.neutralZoom || 1);
+    const [zoom, setZoom] = React.useState(device?.neutralZoom);
 
     const takePicture = async () => {
         try {
-            if (camera.current == null) throw new Error("Camera ref is null");
+            if (camera.current == null) throw new Error("Camera ref is null")
 
-            console.log("Taking picture...");
-            setIsProcessing(true);
-
+            console.log("Taking picture...")
             const photo = await camera.current.takePhoto({
                 flash: flash,
                 enableShutterSound: true,
-            });
+            })
 
-            if (photo == null) throw new Error("Photo is null");
+            if (photo == null) throw new Error("Photo is null")
 
             if (photo) {
-                console.log("Photo taken:", photo.path);
-                const fileUri = 'file://' + photo.path;
-                setFileUri(fileUri);
+                console.log("Photo taken:", photo.path)
+                const fileUri = 'file://' + photo.path
+                setFileUri(fileUri)
 
-                const ocrContent = await analyzeImage(fileUri);
+                const ocrContent = await analyzeImage(fileUri)
 
-                if (ocrContent && ocrContent.responses && ocrContent.responses[0].fullTextAnnotation) {
-                    setocrFileContents(ocrContent.responses[0].fullTextAnnotation.text);
-                    router.dismissAll();
-                    router.push(`/(dashboard)/subject/${activeSubject?.subjectId}/(homework)/OCRConfirm` as RelativePathString);
-                } else {
-                    Alert.alert("No Text Found", "Could not detect any text in the image.");
+                if (ocrContent) {
+                    setocrFileContents(ocrContent.responses[0].textAnnotations[0].description)
+                    router.dismissAll()
+                    router.push(`/(dashboard)/subject/${activeSubject?.subjectId}/OCRConfirm` as RelativePathString)
+                } else if (ocrContent.error) {
+                    Alert.alert("OCR Error", ocrContent.error)
                 }
             } else {
-                Alert.alert("Error", "An error occured while trying to take a picture");
+                Alert.alert("Error", "An error occured while trying to take a picture")
+                return
             }
 
         } catch (error: any) {
-            console.log("Failed to take picture", error);
-            Alert.alert('Error', error.message);
-        } finally {
-            setIsProcessing(false);
+            console.log("Failed to take picture", error)
+            Alert.alert('Error', error.message)
         }
-    };
-
-    if (!device) return <View style={styles.container} />;
+    }
 
     return (
         <View style={styles.container}>
@@ -78,22 +73,17 @@ const CameraScreen = () => {
                 <Camera
                     ref={camera}
                     style={{ flex: 1 }}
-                    device={device}
+                    device={device!}
                     format={format}
                     photoHdr={format?.supportsPhotoHdr}
-                    isActive={true}
+                    isActive
                     zoom={zoom}
                     resizeMode='cover'
                     exposure={exposure}
                     torch={torch}
-                    video={false}
-                    photo={true}
+                    video
+                    photo
                 />
-                {isProcessing && (
-                    <View style={StyleSheet.absoluteFill} className="justify-center items-center bg-black/50">
-                        <ActivityIndicator size="large" color="#5470FD" />
-                    </View>
-                )}
             </View>
 
             <View style={{ flex: 1, backgroundColor: "black" }}>
@@ -134,16 +124,16 @@ const CameraScreen = () => {
                     justifyContent: "space-evenly",
                     alignItems: "center",
                 }}>
-                    <TouchableOpacity onPress={takePicture} disabled={isProcessing}>
-                        <FontAwesome5 name="dot-circle" size={55} color={isProcessing ? "gray" : "white"} />
+                    <TouchableOpacity onPress={takePicture}>
+                        <FontAwesome5 name="dot-circle" size={55} color="white" />
                     </TouchableOpacity>
                 </View>
             </View>
         </View>
-    );
-};
+    )
+}
 
-export default CameraScreen;
+export default CameraScreen
 
 const styles = StyleSheet.create({
     container: {
@@ -151,4 +141,15 @@ const styles = StyleSheet.create({
         paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
         backgroundColor: "black",
     },
-});
+    stepContainer: {
+        gap: 8,
+        marginBottom: 8,
+    },
+    reactLogo: {
+        height: 178,
+        width: 290,
+        bottom: 0,
+        left: 0,
+        position: "absolute",
+    },
+})
